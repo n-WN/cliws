@@ -1,5 +1,4 @@
-# .github/workflows/build.yml
-name: Build
+name: Build and Release
 
 on:
   push:
@@ -10,7 +9,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v3
       - name: Compile
         id: compile
         uses: rust-build/rust-build.action@v1.4.5
@@ -18,9 +17,43 @@ jobs:
           RUSTTARGET: x86_64-unknown-linux-musl
           UPLOAD_MODE: none
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Binary
           path: |
             ${{ steps.compile.outputs.BUILT_ARCHIVE }}
             ${{ steps.compile.outputs.BUILT_CHECKSUM }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: Binary
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v1.0.0-${{ github.run_number }}
+          release_name: Release v1.0.0-${{ github.run_number }}
+          body: Automated release from GitHub Actions
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./${{ steps.compile.outputs.BUILT_ARCHIVE }}
+          asset_name: Binary
+          asset_content_type: application/octet-stream
